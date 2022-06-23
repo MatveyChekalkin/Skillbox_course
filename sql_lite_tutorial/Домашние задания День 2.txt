@@ -1,26 +1,191 @@
 	Задачи День 2:
 
 1	Посчитайте общую сумму продаж в США в 1 квартале 2012 года? Решить 2-мя  способами Джойнами и Подзапросами 
+
+A)JOIN
+	SELECT s.ShipCountry,
+       	       SUM(si.UnitPrice * si.Quantity) AS revenue
+  	 FROM sales AS s
+              LEFT JOIN
+              sales_items AS si ON s.SalesId = si.SalesId
+         WHERE ShipCountry = 'USA' AND 
+       	       SalesDate > '2011-12-31' AND 
+               SalesDate < '2012-04-01'
+         GROUP BY s.ShipCountry;
+
+B) Подзапрос в SELECT	
+
+	SELECT s.ShipCountry,
+       		SUM( (
+                	SELECT SUM(si.UnitPrice * si.Quantity) 
+                  	FROM sales_items AS si
+                 	WHERE s.SalesId = si.SalesId
+            )
+	       ) AS revenue
+  	FROM sales AS s
+ 	WHERE   ShipCountry = 'USA' AND 
+       		SalesDate > '2011-12-31' AND 
+       		SalesDate < '2012-04-01';
+
+C) Подзапрос в WHERE 
+	
+	SELECT 'USA' AS country,
+               SUM(UnitPrice * Quantity) AS revenue
+         FROM sales_items
+        WHERE SalesId IN (
+                  SELECT SalesId
+                    FROM sales
+                   WHERE ShipCountry = 'USA' AND 
+                         SalesDate > '2011-12-31' AND 
+                         SalesDate < '2012-04-01'
+                        );	
+
 2	Покажите имена клиентов, которых нет среди работников.
 	Решить 3-мя способами: подзапросами, джойнами и логическим вычитанием.
-3	Теоретический вопрос
-	Вернет ли данный запрос  одинаковый результат?  Да или НЕТ. 
-	Если  ДА. Объяснить почему.
-	Если НЕТ. Объяснить почему. Какой  запрос вернет больше строк ?
+	
+A) JOIN
+	SELECT DISTINCT FirstName
+  	  FROM customers AS c
+       	       LEFT JOIN
+               employees AS e ON c.FirstName = e.FirstName
+         WHERE e.FirstName IS NULL;
 
- 	select *
- 	from T1 LEFT JOIN T2
-		ON T1.column1=T2.column1
-	 where   T1.column1=0
- 	
-	 select *
-	 from T1 LEFT JOIN T2
-		ON T1.column1=T2.column1 and   T1.column1=0
+B) Подзапрос
+	SELECT DISTINCT FirstName
+  	  FROM customers
+        WHERE FirstName NOT IN (
+                   SELECT FirstName
+                      FROM employees
+              );
 
-4	Посчитайте количество треков в каждом альбоме. В результате должно быть:  имя альбома и кол-во треков.
-	Решить  2-мя способами: подзапросом и джойнами 
-5	Покажите фамилию и имя покупателей немцев сделавших заказы в 2009 году, товары которых были отгружены в город Берлин?
-6	Покажите фамилии  клиентов которые  купили больше 30 музыкальных треков ?
+C) Логическим вычитание
+	SELECT DISTINCT FirstName
+  	  FROM customers
+	EXCEPT
+	SELECT DISTINCT FirstName
+  	  FROM employees;
+
+3	Посчитайте количество треков в каждом альбоме. В результате должно быть:  имя альбома и кол-во треков.
+	Решить  2-мя способами: подзапросом и джойнами
+
+A) JOIN
+
+	SELECT a.Title,
+       		COUNT(t.Name) AS count_tracks
+  	  FROM albums AS a
+               LEFT JOIN
+               tracks AS t ON a.AlbumId = t.AlbumId
+        GROUP BY a.Title;
+
+B) Подзапрос
+
+	SELECT a.Title,
+       		(
+           	  SELECT COUNT(AlbumId) 
+             	     FROM tracks AS t
+            	   WHERE a.AlbumId = t.AlbumId
+       		)
+       		AS count_tracks
+  	  FROM albums AS a
+ 	ORDER BY count_tracks, a.Title;	
+	
+4	Покажите фамилию и имя покупателей немцев сделавших заказы в 2009 году, товары которых были отгружены в город Берлин?
+
+A) JOIN
+
+	SELECT DISTINCT c.FirstName,
+                c.LastName
+  	  FROM customers AS c
+          LEFT JOIN
+          sales AS s ON c.CustomerId = s.CustomerId
+         WHERE s.ShipCity LIKE '%Berli%' AND 
+               s.SalesDate > '2008-12-31' AND 
+               s.SalesDate > '2010-01-01';
+
+B) Подзапрос
+
+        SELECT FirstName,
+       	       LastName
+          FROM customers
+         WHERE CustomerId IN (
+                              SELECT CustomerId
+                                FROM sales
+                               WHERE ShipCity LIKE '%Berli%' AND 
+                                     SalesDate > '2008-12-31' AND 
+                                     SalesDate > '2010-01-01'
+                               );
+
+5	Покажите фамилии  клиентов которые  купили больше 30 музыкальных треков ?
 	Решить  задачу ,как минимум, 2-мя способами: джойнами и подзапросами
-7	В базе есть таблица музыкальных треков и жанров Назовите среднюю стоимстость музыкального трека в каждом жанре?
-8	В базе есть таблица музыкальных треков и жанров. Покажите жанры у которых средняя стоимость одного трека больше 1-го рубля
+A) Join
+
+	SELECT LastName 
+	FROM
+	    (SELECT c.CustomerId,
+	            c.FirstName,
+	            c.LastName,
+	            SUM(si.Quantity) AS qwt
+	    FROM customers AS c
+	    LEFT JOIN sales AS s ON c.CustomerId = s.CustomerId 
+	    LEFT JOIN sales_items AS si ON s.SalesId = si.SalesId
+	    GROUP BY c.CustomerId
+	    HAVING qwt > 30)
+
+B) Подзапросы 
+
+	SELECT LastName,
+	       (
+	           SELECT count(Quantity) 
+	             FROM sales_items
+	            WHERE sales_items.SalesId IN (
+	                      SELECT sales.SalesId
+	                        FROM sales
+	                       WHERE sales.CustomerId = customers.CustomerId
+	                  )
+	       ) AS SUM
+	  FROM customers
+	  WHERE SUM >30
+	  ORDER BY SUM  DESC;
+
+
+
+	SELECT FirstName,
+	       LastName
+	  FROM customers
+	 WHERE CustomerId IN (
+	           SELECT CustomerId
+	           FROM (SELECT CustomerId,
+	                   SalesId,
+	                  SUM((
+ 	                    SELECT SUM(Quantity) 
+	                        FROM sales_items
+	                       WHERE sales.SalesId = sales_items.SalesId
+ 	                ))
+	                AS sum_qwt
+	            FROM sales
+	           GROUP BY CustomerId
+	           HAVING sum_qwt > 30
+	               )
+	);
+
+
+6	В базе есть таблица музыкальных треков и жанров Назовите среднюю стоимстость музыкального трека в каждом жанре?
+
+	
+	SELECT g.Name,
+	       ROUND(AVG(t.UnitPrice), 2) AS avg_price
+	FROM genres AS g
+	LEFT JOIN tracks AS t
+	ON g.GenreId = t.GenreId
+	GROUP BY g.Name
+
+
+7	В базе есть таблица музыкальных треков и жанров. Покажите жанры у которых средняя стоимость одного трека больше 1-го рубля
+
+	SELECT g.Name,
+	       ROUND(AVG(t.UnitPrice), 2) AS avg_price
+	  FROM genres AS g
+	       LEFT JOIN
+	       tracks AS t ON g.GenreId = t.GenreId
+	 GROUP BY g.Name
+	HAVING avg_price > 1;
